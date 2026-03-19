@@ -15,6 +15,8 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            outline: none;
         }
 
         body {
@@ -26,6 +28,57 @@
             justify-content: center;
             align-items: center;
             padding: 60px 20px 20px;
+            overflow: hidden;
+        }
+
+        body::before,
+        body::after {
+            content: '';
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(90px);
+            pointer-events: none;
+            z-index: 0;
+            will-change: transform;
+        }
+
+        body::before {
+            width: 500px;
+            height: 500px;
+            background: #3a3a3a;
+            opacity: 0.25;
+            top: -200px;
+            left: -150px;
+            animation: driftA 18s ease-in-out infinite alternate;
+        }
+
+        body::after {
+            width: 420px;
+            height: 420px;
+            background: #333;
+            opacity: 0.2;
+            bottom: -180px;
+            right: -130px;
+            animation: driftB 22s ease-in-out infinite alternate;
+        }
+
+        @keyframes driftA {
+            from { transform: translate(0, 0); }
+            to   { transform: translate(80px, 70px); }
+        }
+
+        @keyframes driftB {
+            from { transform: translate(0, 0); }
+            to   { transform: translate(-70px, -60px); }
+        }
+
+        .container,
+        .language-selector,
+        .install-prompt,
+        .loading-overlay,
+        .version {
+            position: relative;
+            z-index: 1;
         }
 
         .language-selector {
@@ -174,45 +227,78 @@
             color: #999;
         }
 
-        /* — PLAY BUTTON — */
-        .play-btn {
-            background: #fff;
-            color: #000;
+        /* — SHARED BASE — */
+        .play-btn,
+        .download-btn {
             border: none;
-            padding: 12px 35px;
             border-radius: 25px;
-            font-size: 1em;
             cursor: pointer;
             width: 100%;
-            margin-top: 20px;
             font-weight: bold;
             position: relative;
             overflow: hidden;
-            transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+            isolation: isolate;
+            transition: background 0.35s ease, color 0.35s ease, transform 0.15s, box-shadow 0.2s;
         }
 
-        .play-btn::after {
+        /* слой заливки — clip-path расширяется из центра */
+        .play-btn::before,
+        .download-btn::before {
             content: '';
             position: absolute;
             inset: 0;
-            background: radial-gradient(circle at center, rgba(0,0,0,0.12) 0%, transparent 70%);
-            opacity: 0;
-            transition: opacity 0.3s;
+            z-index: 0;
+            background: var(--fill-color);
+            clip-path: circle(0% at 50% 50%);
+            transition: clip-path 0.42s ease;
         }
 
-        .play-btn:hover {
-            background: #eee;
-            transform: translateY(-2px);
-            box-shadow: 0 6px 18px rgba(255,255,255,0.15);
+        .play-btn:hover::before,
+        .download-btn:hover::before {
+            clip-path: circle(75% at 50% 50%);
         }
 
-        .play-btn:active {
-            transform: translateY(0) scale(0.97);
+        /* текст поверх */
+        .play-btn > span,
+        .download-btn > span {
+            position: relative;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        /* — PLAY BUTTON —
+           белая (#fff) когда СТАРТ, серая (#555) когда ПАУЗА */
+        .play-btn {
+            background: #fff;
+            color: #000;
+            --fill-color: rgba(0, 0, 0, 0.10);
+            padding: 12px 35px;
+            font-size: 1em;
+            margin-top: 20px;
+            box-shadow: 0 2px 10px rgba(255,255,255,0.08);
+            transition: background 0.35s ease, color 0.35s ease, transform 0.15s, box-shadow 0.3s;
+        }
+
+        .play-btn.is-playing {
+            background: #555;
+            color: #fff;
+            --fill-color: rgba(255, 255, 255, 0.13);
             box-shadow: none;
         }
 
-        .play-btn:active::after {
-            opacity: 1;
+        .play-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 18px rgba(0,0,0,0.3);
+        }
+
+        .play-btn:active {
+            transform: scale(0.97);
+            box-shadow: none;
+        }
+
+        .play-btn:active::before {
+            clip-path: circle(0% at 50% 50%);
+            transition: clip-path 0.15s ease;
         }
 
         .play-btn:disabled {
@@ -222,30 +308,29 @@
             box-shadow: none;
         }
 
-        /* — DOWNLOAD BUTTON — */
+        /* — DOWNLOAD BUTTON — тёмно-серая, заливка светлее */
         .download-btn {
             background: #444;
             color: #fff;
-            border: none;
+            --fill-color: rgba(255, 255, 255, 0.11);
             padding: 10px 30px;
-            border-radius: 25px;
             font-size: 0.9em;
-            cursor: pointer;
-            width: 100%;
             margin-top: 10px;
-            transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
         }
 
         .download-btn:hover {
-            background: #525252;
             transform: translateY(-2px);
             box-shadow: 0 5px 14px rgba(0,0,0,0.4);
         }
 
         .download-btn:active {
-            transform: translateY(0) scale(0.97);
-            background: #3a3a3a;
+            transform: scale(0.97);
             box-shadow: none;
+        }
+
+        .download-btn:active::before {
+            clip-path: circle(0% at 50% 50%);
+            transition: clip-path 0.15s ease;
         }
 
         .download-btn:disabled {
@@ -370,8 +455,8 @@
                 <div class="value-display">+<span id="bassValue">0</span> dB</div>
             </div>
 
-            <button class="play-btn" id="playBtn" disabled data-i18n="play">▶️ Играть</button>
-            <button class="download-btn" id="downloadBtn" data-i18n="download">💾 Скачать</button>
+            <button class="play-btn" id="playBtn" disabled data-i18n="play"><span>▶️ Играть</span></button>
+            <button class="download-btn" id="downloadBtn" data-i18n="download"><span>💾 Скачать</span></button>
         </div>
     </div>
 
@@ -385,7 +470,7 @@
         <div class="loading-text" data-i18n="loading">🔉 Аудио загружается...</div>
     </div>
 
-    <div class="version" id="versionDisplay">Version Build: 1.06e - Release</div>
+    <div class="version" id="versionDisplay">Version Build: 1.06k - Release</div>
 
     <script>
         if ('serviceWorker' in navigator) {
@@ -509,7 +594,9 @@
                 const key = el.getAttribute('data-i18n');
                 if (translations[lang][key]) {
                     if (el.id === 'playBtn') {
-                        el.textContent = isPlaying ? translations[lang].pause : translations[lang].play;
+                        el.querySelector('span').textContent = isPlaying ? translations[lang].pause : translations[lang].play;
+                    } else if (el.id === 'downloadBtn') {
+                        el.querySelector('span').textContent = translations[lang][key];
                     } else {
                         el.textContent = translations[lang][key];
                     }
@@ -640,7 +727,8 @@
                 updateInterval = null;
             }
             isPlaying = false;
-            playBtn.textContent = translations[currentLang].play;
+            playBtn.querySelector('span').textContent = translations[currentLang].play;
+            playBtn.classList.remove('is-playing');
             if ('mediaSession' in navigator) {
                 navigator.mediaSession.playbackState = 'paused';
             }
@@ -653,13 +741,14 @@
             sourceNode = audioContext.createBufferSource();
             sourceNode.buffer = audioBuffer;
 
+            // Узкий lowshelf на 80Hz — только суббас, не трогает мидрейндж
             bassBoostFilter = audioContext.createBiquadFilter();
             bassBoostFilter.type = 'lowshelf';
-            bassBoostFilter.frequency.value = 200;
+            bassBoostFilter.frequency.value = 80;
             bassBoostFilter.gain.value = parseFloat(bassBoostSlider.value);
 
             gainNode = audioContext.createGain();
-            gainNode.gain.value = 0.8;
+            gainNode.gain.value = 1.0;
 
             sourceNode.connect(bassBoostFilter);
             bassBoostFilter.connect(gainNode);
@@ -679,7 +768,8 @@
             startTime = audioContext.currentTime;
             currentOffset = offset;
             isPlaying = true;
-            playBtn.textContent = translations[currentLang].pause;
+            playBtn.querySelector('span').textContent = translations[currentLang].pause;
+            playBtn.classList.add('is-playing');
             isSeeking = false;
 
             if ('mediaSession' in navigator) {
@@ -780,10 +870,10 @@
         }
 
         bassBoostSlider.addEventListener('input', (e) => {
-            const value = e.target.value;
+            const value = parseFloat(e.target.value);
             bassValue.textContent = value;
             if (bassBoostFilter) {
-                bassBoostFilter.gain.value = parseFloat(value);
+                bassBoostFilter.gain.value = value;
             }
         });
 
@@ -847,16 +937,15 @@
         downloadBtn.addEventListener('click', async () => {
             if (!audioBuffer) return;
 
-            downloadBtn.textContent = translations[currentLang].processing;
+            downloadBtn.querySelector('span').textContent = translations[currentLang].processing;
             downloadBtn.disabled = true;
 
             try {
-                const targetSampleRate = 22050;
-                
+                // Сохраняем оригинальный сэмплрейт — не режем верхние частоты
                 const offlineContext = new OfflineAudioContext(
                     audioBuffer.numberOfChannels,
-                    Math.floor(audioBuffer.length * targetSampleRate / audioBuffer.sampleRate),
-                    targetSampleRate
+                    audioBuffer.length,
+                    audioBuffer.sampleRate
                 );
 
                 const offlineSource = offlineContext.createBufferSource();
@@ -864,11 +953,15 @@
 
                 const offlineFilter = offlineContext.createBiquadFilter();
                 offlineFilter.type = 'lowshelf';
-                offlineFilter.frequency.value = 200;
+                offlineFilter.frequency.value = 80;
                 offlineFilter.gain.value = parseFloat(bassBoostSlider.value);
 
+                const offlineGain = offlineContext.createGain();
+                offlineGain.gain.value = 1.0;
+
                 offlineSource.connect(offlineFilter);
-                offlineFilter.connect(offlineContext.destination);
+                offlineFilter.connect(offlineGain);
+                offlineGain.connect(offlineContext.destination);
                 offlineSource.start(0);
 
                 const renderedBuffer = await offlineContext.startRendering();
@@ -884,7 +977,7 @@
 
                 URL.revokeObjectURL(url);
             } finally {
-                downloadBtn.textContent = translations[currentLang].download;
+                downloadBtn.querySelector('span').textContent = translations[currentLang].download;
                 downloadBtn.disabled = false;
             }
         });
