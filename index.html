@@ -9,7 +9,8 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <meta name="apple-mobile-web-app-title" content="Bass 🔊">
     <link rel="manifest" href="manifest.json">
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' fill='%232a2a2a' rx='12'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='24'%3E🔊%3C/text%3E%3C/svg%3E">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' fill='%232a2a2a' rx='12'/%3E%3Ctext x='24' y='30' font-size='32' text-anchor='middle' fill='%23fff'%3E🔊%3C/text%3E%3C/svg%3E">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' fill='%232a2a2a' rx='45'/%3E%3Ctext x='90' y='110' font-size='120' text-anchor='middle' fill='%23fff'%3E🔊%3C/text%3E%3C/svg%3E">
     <style>
         * {
             margin: 0;
@@ -437,7 +438,7 @@
 
         <div class="upload-area" id="uploadArea">
             <p data-i18n="upload">🎵 Загрузить аудио</p>
-            <input type="file" id="audioFile" accept="audio/*">
+            <input type="file" id="audioFile" accept=".mp3,.wav,.m4a,.aac,.ogg,.flac,.weba">
         </div>
 
         <div class="controls" id="controls">
@@ -826,7 +827,7 @@
 
         audioFile.addEventListener('change', (e) => {
             const file = e.target.files[0];
-            if (file) {
+            if (file && file.type.startsWith('audio/')) {
                 loadAudio(file);
             }
         });
@@ -1008,16 +1009,15 @@
                 channels.push(buffer.getChannelData(i));
             }
 
-            while (pos < length - 44) {
+            while (pos < length) {
                 for (let i = 0; i < buffer.numberOfChannels; i++) {
-                    const sample = Math.max(-1, Math.min(1, channels[i][offset]));
-                    view.setInt16(pos, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+                    let s = Math.max(-1, Math.min(1, channels[i][offset]));
+                    s = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                    view.setInt16(pos, s, true);
                     pos += 2;
                 }
                 offset++;
             }
-
-            return arrayBuffer;
 
             function setUint16(data) {
                 view.setUint16(pos, data, true);
@@ -1028,6 +1028,8 @@
                 view.setUint32(pos, data, true);
                 pos += 4;
             }
+
+            return arrayBuffer;
         }
     </script>
 </body>
