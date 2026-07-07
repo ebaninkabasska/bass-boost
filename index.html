@@ -446,7 +446,7 @@
 
             <div class="slider-container">
                 <label data-i18n="volume">Громкость</label>
-                <input type="range" id="volumeBoost" min="100" max="250" value="100" step="1">
+                <input type="range" id="volumeBoost" min="100" max="500" value="100" step="1">
                 <div class="value-display"><span id="volumeValue">100</span>%</div>
             </div>
 
@@ -471,7 +471,7 @@
         <div class="loading-text" data-i18n="loading">🔉 Аудио загружается...</div>
     </div>
 
-    <div class="version" id="versionDisplay">Version Build: 1.07 - Release</div>
+    <div class="version" id="versionDisplay">Version Build: 1.08 - Release</div>
 
     <script>
         if ('serviceWorker' in navigator) {
@@ -631,6 +631,18 @@
             return `${mins}:${secs.toString().padStart(2, '0')}`;
         }
 
+        function makeSoftClipCurve(amount) {
+            const samples = 2048;
+            const curve = new Float32Array(samples);
+            const k = amount;
+            const norm = Math.tanh(k);
+            for (let i = 0; i < samples; i++) {
+                const x = (i * 2) / samples - 1;
+                curve[i] = Math.tanh(x * k) / norm;
+            }
+            return curve;
+        }
+
         function getCurrentTime() {
             if (!audioContext || !isPlaying) return currentOffset;
             return currentOffset + (audioContext.currentTime - startTime);
@@ -754,12 +766,9 @@
             volumeGainNode = audioContext.createGain();
             volumeGainNode.gain.value = parseFloat(volumeBoostSlider.value) / 100;
 
-            limiterNode = audioContext.createDynamicsCompressor();
-            limiterNode.threshold.value = -1;
-            limiterNode.knee.value = 1;
-            limiterNode.ratio.value = 12;
-            limiterNode.attack.value = 0.003;
-            limiterNode.release.value = 0.25;
+            limiterNode = audioContext.createWaveShaper();
+            limiterNode.curve = makeSoftClipCurve(1.4);
+            limiterNode.oversample = '4x';
 
             gainNode = audioContext.createGain();
             gainNode.gain.value = 1.0;
@@ -974,12 +983,9 @@
                 const offlineVolumeGain = offlineContext.createGain();
                 offlineVolumeGain.gain.value = parseFloat(volumeBoostSlider.value) / 100;
 
-                const offlineLimiter = offlineContext.createDynamicsCompressor();
-                offlineLimiter.threshold.value = -1;
-                offlineLimiter.knee.value = 1;
-                offlineLimiter.ratio.value = 12;
-                offlineLimiter.attack.value = 0.003;
-                offlineLimiter.release.value = 0.25;
+                const offlineLimiter = offlineContext.createWaveShaper();
+                offlineLimiter.curve = makeSoftClipCurve(1.4);
+                offlineLimiter.oversample = '4x';
 
                 const offlineGain = offlineContext.createGain();
                 offlineGain.gain.value = 1.0;
