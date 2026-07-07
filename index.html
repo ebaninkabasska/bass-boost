@@ -228,7 +228,6 @@
             color: #999;
         }
 
-        /* — SHARED BASE — */
         .play-btn,
         .download-btn {
             border: none;
@@ -242,7 +241,6 @@
             transition: background 0.35s ease, color 0.35s ease, transform 0.15s, box-shadow 0.2s;
         }
 
-        /* слой заливки — clip-path расширяется из центра */
         .play-btn::before,
         .download-btn::before {
             content: '';
@@ -259,7 +257,6 @@
             clip-path: circle(75% at 50% 50%);
         }
 
-        /* текст поверх */
         .play-btn > span,
         .download-btn > span {
             position: relative;
@@ -267,8 +264,6 @@
             pointer-events: none;
         }
 
-        /* — PLAY BUTTON —
-           белая (#fff) когда СТАРТ, серая (#555) когда ПАУЗА */
         .play-btn {
             background: #fff;
             color: #000;
@@ -309,7 +304,6 @@
             box-shadow: none;
         }
 
-        /* — DOWNLOAD BUTTON — тёмно-серая, заливка светлее */
         .download-btn {
             background: #444;
             color: #fff;
@@ -451,6 +445,12 @@
             </div>
 
             <div class="slider-container">
+                <label data-i18n="volume">Громкость</label>
+                <input type="range" id="volumeBoost" min="100" max="250" value="100" step="1">
+                <div class="value-display"><span id="volumeValue">100</span>%</div>
+            </div>
+
+            <div class="slider-container">
                 <label data-i18n="boost">Усиление басов</label>
                 <input type="range" id="bassBoost" min="0" max="100" value="0" step="1">
                 <div class="value-display">+<span id="bassValue">0</span> dB</div>
@@ -471,7 +471,7 @@
         <div class="loading-text" data-i18n="loading">🔉 Аудио загружается...</div>
     </div>
 
-    <div class="version" id="versionDisplay">Version Build: 1.06k - Release</div>
+    <div class="version" id="versionDisplay">Version Build: 1.07 - Release</div>
 
     <script>
         if ('serviceWorker' in navigator) {
@@ -503,8 +503,10 @@
         const audioFile = document.getElementById('audioFile');
         const controls = document.getElementById('controls');
         const bassBoostSlider = document.getElementById('bassBoost');
+        const volumeBoostSlider = document.getElementById('volumeBoost');
         const seekSlider = document.getElementById('seekSlider');
         const bassValue = document.getElementById('bassValue');
+        const volumeValue = document.getElementById('volumeValue');
         const playBtn = document.getElementById('playBtn');
         const downloadBtn = document.getElementById('downloadBtn');
         const fileInfo = document.getElementById('fileInfo');
@@ -515,6 +517,8 @@
         let audioContext;
         let sourceNode;
         let bassBoostFilter;
+        let volumeGainNode;
+        let limiterNode;
         let gainNode;
         let audioBuffer;
         let isPlaying = false;
@@ -533,6 +537,7 @@
                 title: '🔊 Bass Booster',
                 upload: '🎵 Загрузить аудио',
                 seek: 'Перемотка',
+                volume: 'Громкость',
                 boost: 'Усиление басов',
                 play: '▶️ Играть',
                 pause: '⏸️ Пауза',
@@ -547,6 +552,7 @@
                 title: '🔊 Bass Booster',
                 upload: '🎵 Upload audio',
                 seek: 'Seek position',
+                volume: 'Volume',
                 boost: 'Bass boost',
                 play: '▶️ Play',
                 pause: '⏸️ Pause',
@@ -571,7 +577,7 @@
                 const response = await fetch('https://ipapi.co/json/');
                 const data = await response.json();
                 const countryCode = data.country_code;
-                
+
                 if (cisCountries.includes(countryCode)) {
                     return 'ru';
                 } else {
@@ -589,7 +595,7 @@
         function setLanguage(lang) {
             currentLang = lang;
             localStorage.setItem('bass-booster-lang', lang);
-            
+
             const elements = document.querySelectorAll('[data-i18n]');
             elements.forEach(el => {
                 const key = el.getAttribute('data-i18n');
@@ -603,7 +609,7 @@
                     }
                 }
             });
-            
+
             langItems.forEach(item => {
                 item.classList.toggle('active', item.dataset.lang === lang);
             });
@@ -630,7 +636,6 @@
             return currentOffset + (audioContext.currentTime - startTime);
         }
 
-        // — COVER ART — генерируем SVG-обложку с названием трека
         function generateCoverDataUrl(title) {
             const short = title.length > 24 ? title.slice(0, 22) + '…' : title;
             const svg = `
@@ -649,7 +654,6 @@
             return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
         }
 
-        // — MEDIA SESSION — регистрируем плеер в шторке
         function setupMediaSession() {
             if (!('mediaSession' in navigator)) return;
 
@@ -742,17 +746,28 @@
             sourceNode = audioContext.createBufferSource();
             sourceNode.buffer = audioBuffer;
 
-            // Узкий lowshelf на 80Hz — только суббас, не трогает мидрейндж
             bassBoostFilter = audioContext.createBiquadFilter();
             bassBoostFilter.type = 'lowshelf';
             bassBoostFilter.frequency.value = 80;
             bassBoostFilter.gain.value = parseFloat(bassBoostSlider.value);
 
+            volumeGainNode = audioContext.createGain();
+            volumeGainNode.gain.value = parseFloat(volumeBoostSlider.value) / 100;
+
+            limiterNode = audioContext.createDynamicsCompressor();
+            limiterNode.threshold.value = -1;
+            limiterNode.knee.value = 1;
+            limiterNode.ratio.value = 12;
+            limiterNode.attack.value = 0.003;
+            limiterNode.release.value = 0.25;
+
             gainNode = audioContext.createGain();
             gainNode.gain.value = 1.0;
 
             sourceNode.connect(bassBoostFilter);
-            bassBoostFilter.connect(gainNode);
+            bassBoostFilter.connect(volumeGainNode);
+            volumeGainNode.connect(limiterNode);
+            limiterNode.connect(gainNode);
             gainNode.connect(audioContext.destination);
 
             sourceNode.onended = () => {
@@ -788,23 +803,15 @@
             }, 500);
         }
 
-        // Удаляет сайты и мусор из названия файла
         function cleanFileName(name) {
             return name
-                // убираем расширение на всякий случай
                 .replace(/\.[^/.]+$/, '')
-                // (site.com) или [site.com]
                 .replace(/[\(\[][^\)\]]*\.(com|ru|net|org|io|me|co|uk|fm|xyz|club|site|online|music|audio)[^\)\]]*[\)\]]/gi, '')
-                // голый домен в начале или конце: "site.com - трек"
                 .replace(/^[\w\-]+\.(com|ru|net|org|io|me|co|uk|fm|xyz|club|site|online|music|audio)\s*[\-–—|]?\s*/gi, '')
                 .replace(/\s*[\-–—|]?\s*[\w\-]+\.(com|ru|net|org|io|me|co|uk|fm|xyz|club|site|online|music|audio)$/gi, '')
-                // www.что-угодно.домен
                 .replace(/\bwww\.[^\s\]\)]+/gi, '')
-                // http(s):// ссылки
                 .replace(/https?:\/\/[^\s]+/gi, '')
-                // @ упоминания типо @channel
                 .replace(/@\w+/g, '')
-                // несколько пробелов / тире в конце/начале
                 .replace(/\s*[\-–—]\s*$/, '')
                 .replace(/^\s*[\-–—]\s*/, '')
                 .replace(/\s{2,}/g, ' ')
@@ -834,11 +841,11 @@
 
         async function loadAudio(file) {
             loadingOverlay.classList.add('show');
-            
+
             try {
                 stopAudio();
                 currentOffset = 0;
-                
+
                 const rawName = file.name.replace(/\.[^/.]+$/, '');
                 currentFileName = cleanFileName(rawName);
                 fileInfo.textContent = `📁 ${file.name}`;
@@ -858,7 +865,7 @@
                 currentTimeDisplay.textContent = '0:00';
 
                 playBtn.disabled = false;
-                
+
                 loadingOverlay.classList.remove('show');
 
                 setupMediaSession();
@@ -875,6 +882,14 @@
             bassValue.textContent = value;
             if (bassBoostFilter) {
                 bassBoostFilter.gain.value = value;
+            }
+        });
+
+        volumeBoostSlider.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            volumeValue.textContent = value;
+            if (volumeGainNode) {
+                volumeGainNode.gain.value = value / 100;
             }
         });
 
@@ -896,9 +911,9 @@
             if (isDraggingSeek) {
                 const wasPlaying = isPlaying;
                 const newTime = parseFloat(seekSlider.value);
-                
+
                 isDraggingSeek = false;
-                
+
                 if (wasPlaying) {
                     startAudio(newTime);
                 } else {
@@ -912,9 +927,9 @@
             if (isDraggingSeek) {
                 const wasPlaying = isPlaying;
                 const newTime = parseFloat(seekSlider.value);
-                
+
                 isDraggingSeek = false;
-                
+
                 if (wasPlaying) {
                     startAudio(newTime);
                 } else {
@@ -942,7 +957,6 @@
             downloadBtn.disabled = true;
 
             try {
-                // Сохраняем оригинальный сэмплрейт — не режем верхние частоты
                 const offlineContext = new OfflineAudioContext(
                     audioBuffer.numberOfChannels,
                     audioBuffer.length,
@@ -957,11 +971,23 @@
                 offlineFilter.frequency.value = 80;
                 offlineFilter.gain.value = parseFloat(bassBoostSlider.value);
 
+                const offlineVolumeGain = offlineContext.createGain();
+                offlineVolumeGain.gain.value = parseFloat(volumeBoostSlider.value) / 100;
+
+                const offlineLimiter = offlineContext.createDynamicsCompressor();
+                offlineLimiter.threshold.value = -1;
+                offlineLimiter.knee.value = 1;
+                offlineLimiter.ratio.value = 12;
+                offlineLimiter.attack.value = 0.003;
+                offlineLimiter.release.value = 0.25;
+
                 const offlineGain = offlineContext.createGain();
                 offlineGain.gain.value = 1.0;
 
                 offlineSource.connect(offlineFilter);
-                offlineFilter.connect(offlineGain);
+                offlineFilter.connect(offlineVolumeGain);
+                offlineVolumeGain.connect(offlineLimiter);
+                offlineLimiter.connect(offlineGain);
                 offlineGain.connect(offlineContext.destination);
                 offlineSource.start(0);
 
