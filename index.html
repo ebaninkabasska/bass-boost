@@ -471,7 +471,7 @@
         <div class="loading-text" data-i18n="loading">🔉 Аудио загружается...</div>
     </div>
 
-    <div class="version" id="versionDisplay">Version Build: 1.08 - Release</div>
+    <div class="version" id="versionDisplay">Version Build: 1.09 - Release</div>
 
     <script>
         if ('serviceWorker' in navigator) {
@@ -650,6 +650,11 @@
 
         function generateCoverDataUrl(title) {
             const short = title.length > 24 ? title.slice(0, 22) + '…' : title;
+            const bassApplied = parseFloat(bassBoostSlider.value) > 0;
+            const volumeApplied = parseFloat(volumeBoostSlider.value) > 100;
+            let tag = 'BASSED';
+            if (bassApplied && volumeApplied) tag = 'BASSED+VOLUMED';
+            else if (volumeApplied && !bassApplied) tag = 'VOLUMED';
             const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
   <defs>
@@ -660,7 +665,7 @@
   </defs>
   <rect width="512" height="512" fill="url(#bg)"/>
   <text x="256" y="230" font-family="Arial,sans-serif" font-size="120" text-anchor="middle" fill="#fff">🔊</text>
-  <text x="256" y="340" font-family="Arial,sans-serif" font-size="36" font-weight="bold" text-anchor="middle" fill="#fff">[BASSED]</text>
+  <text x="256" y="340" font-family="Arial,sans-serif" font-size="36" font-weight="bold" text-anchor="middle" fill="#fff">[${tag}]</text>
   <text x="256" y="390" font-family="Arial,sans-serif" font-size="22" text-anchor="middle" fill="#aaa">${short.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</text>
 </svg>`;
             return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
@@ -1003,9 +1008,15 @@
                 const blob = new Blob([wav], { type: 'audio/wav' });
                 const url = URL.createObjectURL(blob);
 
+                const bassApplied = parseFloat(bassBoostSlider.value) > 0;
+                const volumeApplied = parseFloat(volumeBoostSlider.value) > 100;
+                let tag = '[BASSED]';
+                if (bassApplied && volumeApplied) tag = '[BASSED+VOLUMED]';
+                else if (volumeApplied && !bassApplied) tag = '[VOLUMED]';
+
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `[BASSED] ${currentFileName}.wav`;
+                a.download = `${tag} ${currentFileName}.wav`;
                 a.click();
 
                 URL.revokeObjectURL(url);
